@@ -9,6 +9,7 @@ import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,11 +22,12 @@ public class ReviewParser {
         API = api;
     }
 
-    public String parseAll() {
+    public List<String> parseAll() {
         String reviewsString = parse();
 
         int limit = getPageAmount(reviewsString);
-        StringBuilder res = new StringBuilder(reviewsString);
+        CopyOnWriteArrayList<String> res = new CopyOnWriteArrayList<>();
+        res.add(reviewsString);
         List<CompletableFuture<String>> futures = new ArrayList<>(limit - 1);
 
         while (currentPage.get() < limit) {
@@ -39,7 +41,7 @@ public class ReviewParser {
         for (CompletableFuture<String> future : futures) {
             try {
                 String str = future.get();
-                res.append(str);
+                res.add(str);
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
@@ -48,30 +50,18 @@ public class ReviewParser {
         currentPage.set(1);
         reviewsRequestURL = getRequestURL();
 
-        return res.toString();
+        return res;
     }
 
     public String parse() {
-        HttpRequest request;
-        try {
-            request = HttpRequest.newBuilder()
-                    .uri(new URI(reviewsRequestURL))
-                    .header("accept", "application/json")
-                    .header("X-API-KEY", API)
-                    .method("GET", HttpRequest.BodyPublishers.noBody())
-                    .build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-
-        try {
-            return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString()).body();
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        return parseFromUrl(reviewsRequestURL);
     }
 
-    public String parse(String reviewsRequestURL) {
+    public String parse(String url) {
+        return parseFromUrl(url);
+    }
+
+    private String parseFromUrl(String reviewsRequestURL) {
         HttpRequest request;
         try {
             request = HttpRequest.newBuilder()
