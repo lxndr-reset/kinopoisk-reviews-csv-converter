@@ -22,6 +22,6 @@ public class Run {
         List<String> parse = parser.parseAll();
         List<Review> reviews = ReviewConvertor.reviewsFromString(parse);
 
-        new CsvManager.Converter().addToCsv("./myfile.csv", reviews);
+        new CsvManager.Converter().addToCsv("./reviews.csv", reviews);
     }
 }
