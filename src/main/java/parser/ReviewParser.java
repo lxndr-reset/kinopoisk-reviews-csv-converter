@@ -22,6 +22,10 @@ public class ReviewParser {
         API = api;
     }
 
+    private String withDefaultRequest(int page) {
+        return STR."https://api.kinopoisk.dev/v1.4/review?page=\{page}&limit=250&selectFields=id&selectFields=type&selectFields=review&selectFields=date&selectFields=author&selectFields=updatedAt&selectFields=createdAt&notNullFields=&movieId=326" ;
+    }
+
     public List<String> parseAll() {
         String reviewsString = parse();
 
@@ -74,19 +78,20 @@ public class ReviewParser {
             throw new RuntimeException(e);
         }
 
-        try {
-            return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString()).body();
+
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            return client.send(request, HttpResponse.BodyHandlers.ofString()).body();
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
     }
 
     private String getRequestURL() {
-        return STR."https://api.kinopoisk.dev/v1.4/review?page=\{currentPage}&limit=250&selectFields=id&selectFields=type&selectFields=review&selectFields=date&selectFields=author&selectFields=updatedAt&selectFields=createdAt&notNullFields=&movieId=326";
+        return withDefaultRequest(currentPage.get());
     }
 
     private String getRequestURL(int page) {
-        return STR."https://api.kinopoisk.dev/v1.4/review?page=\{page}&limit=250&selectFields=id&selectFields=type&selectFields=review&selectFields=date&selectFields=author&selectFields=updatedAt&selectFields=createdAt&notNullFields=&movieId=326";
+        return withDefaultRequest(page);
     }
 
     //"total":599,"limit":250,"page":1,"pages":3}
