@@ -1,102 +1,50 @@
 package parser;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReviewParser {
-    private final String API;
+
     private final AtomicInteger currentPage = new AtomicInteger(1);
-    private String reviewsRequestURL = getRequestURL();
 
-    public ReviewParser(String api) {
-        API = api;
-    }
-
-    private String withDefaultRequest(int page) {
-        return STR."https://api.kinopoisk.dev/v1.4/review?page=\{page}&limit=250&selectFields=id&selectFields=type&selectFields=review&selectFields=date&selectFields=author&selectFields=updatedAt&selectFields=createdAt&notNullFields=&movieId=326" ;
-    }
-
-    public List<String> parseAll() {
-        String reviewsString = parse();
-
-        int limit = getPageAmount(reviewsString);
-        CopyOnWriteArrayList<String> res = new CopyOnWriteArrayList<>();
-        res.add(reviewsString);
-        List<CompletableFuture<String>> futures = new ArrayList<>(limit - 1);
-
-        while (currentPage.get() < limit) {
-            currentPage.incrementAndGet();
-            reviewsRequestURL = getRequestURL();
-            String requestURL = getRequestURL(currentPage.get());
-            CompletableFuture<String> e = CompletableFuture.supplyAsync(() -> parse(requestURL));
-            futures.add(e);
-        }
-
-        for (CompletableFuture<String> future : futures) {
+    private void waitFutures(List<CompletableFuture<JsonPageResponse>> futures, List<Review> parsedPages) {
+        for (CompletableFuture<JsonPageResponse> future : futures) {
             try {
-                String str = future.get();
-                res.add(str);
+                List<Review> reviews = future.get().getReviews();
+                parsedPages.addAll(reviews);
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    private String getRequestUrlOfPage(int page) {
+        return STR."https://api.kinopoisk.dev/v1.4/review?page=\{page}&limit=250&selectFields=id&selectFields=type&selectFields=review&selectFields=date&selectFields=author&selectFields=updatedAt&selectFields=createdAt&notNullFields=&movieId=326";
+    }
+
+    public List<Review> parseAll() {
+        // need to parse the first page to get the number of pages
+        JsonPageResponse jsonPageResponse = RequestSender.send(getRequestUrlOfPage(currentPage.get()));
+
+        List<Review> parsedPages = new ArrayList<>(jsonPageResponse.getPages() * 250);
+        List<CompletableFuture<JsonPageResponse>> futures = new ArrayList<>();
+        parsedPages.addAll(jsonPageResponse.getReviews());
+
+        while (currentPage.incrementAndGet() <= jsonPageResponse.getPages()) {
+            // If inline currentPage.get(), it'll be changed after loop finished and all built request urls will wrong
+            String parseURL = getRequestUrlOfPage(currentPage.get());
+            futures.add(CompletableFuture.supplyAsync(() ->
+                    RequestSender.send(parseURL)
+            ));
+        }
 
         currentPage.set(1);
-        reviewsRequestURL = getRequestURL();
 
-        return res;
-    }
+        waitFutures(futures, parsedPages);
 
-    public String parse() {
-        return parseFromUrl(reviewsRequestURL);
-    }
-
-    public String parse(String url) {
-        return parseFromUrl(url);
-    }
-
-    private String parseFromUrl(String reviewsRequestURL) {
-        HttpRequest request;
-        try {
-            request = HttpRequest.newBuilder()
-                    .uri(new URI(reviewsRequestURL))
-                    .header("accept", "application/json")
-                    .header("X-API-KEY", API)
-                    .method("GET", HttpRequest.BodyPublishers.noBody())
-                    .build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-
-
-        try (HttpClient client = HttpClient.newHttpClient()) {
-            return client.send(request, HttpResponse.BodyHandlers.ofString()).body();
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private String getRequestURL() {
-        return withDefaultRequest(currentPage.get());
-    }
-
-    private String getRequestURL(int page) {
-        return withDefaultRequest(page);
-    }
-
-    //"total":599,"limit":250,"page":1,"pages":3}
-    private int getPageAmount(String string) {
-        String firstPart = "\"pages\":";
-        return Integer.parseInt(string.substring(string.indexOf(firstPart) + firstPart.length(), string.lastIndexOf("}")));
+        return parsedPages;
     }
 }
