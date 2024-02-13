@@ -11,7 +11,7 @@ import java.util.List;
 
 public class CsvConverter {
 
-    public void writeToCSV(String path, List<Review> list) throws IOException {
+    public static void writeToCSV(String path, List<Review> list) throws IOException {
         if (!path.endsWith(".csv")) {
             throw new IllegalArgumentException("File should end with .csv");
         }

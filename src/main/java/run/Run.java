@@ -1,10 +1,11 @@
 package run;
 
+import parser.Review;
 import parser.ReviewParser;
 import writer.CsvConverter;
 
 import java.io.IOException;
-import java.util.Scanner;
+import java.util.List;
 
 
 public class Run {
@@ -12,19 +13,13 @@ public class Run {
     public static String API = "QZ73JS1-D4DMMK9-MDSVKBQ-TSN655K";
 
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-
-        System.out.println("Enter your API. Press enter to use default API (may be out of the limit)");
-
-        String userInput = scanner.nextLine();
-        scanner.close();
-
-        if (!userInput.isEmpty()) {
-            API = userInput;
+        if (args.length == 1) {
+            API = args[0];
         }
 
         try {
-            new CsvConverter().writeToCSV("./reviews.csv", new ReviewParser().parseAll());
+            List<Review> list = new ReviewParser().parseAll();
+            CsvConverter.writeToCSV("./reviews.csv", list);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
